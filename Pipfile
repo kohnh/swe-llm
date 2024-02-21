@@ -10,6 +10,7 @@ pydantic = "*"
 beanie = "*"
 openai = "*"
 python-dotenv = "*"
+pymongo = {extras = ["srv"], version = "*"}
 
 [dev-packages]
 

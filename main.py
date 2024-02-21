@@ -7,9 +7,15 @@ from openai import OpenAI
 import os
 from dotenv import load_dotenv
 
+from motor.motor_asyncio import AsyncIOMotorClient
+from beanie import Document, Indexed, init_beanie
+from urllib.parse import quote_plus
+
+
 load_dotenv()
-client = OpenAI( api_key=os.environ.get("OPENAI_API_KEY"))
+openAI_client = OpenAI( api_key=os.environ.get("OPENAI_API_KEY"))
 MODEL = "gpt-3.5-turbo"
+
 
 app = FastAPI()
 
@@ -17,6 +23,12 @@ app = FastAPI()
 class Convo(BaseModel):
     name: str
     params: dict
+
+username = quote_plus(os.environ.get("USERNAME"))
+password = quote_plus(os.environ.get("PASSWORD"))
+uri = 'mongodb+srv://' + username + ':' + password + '@cluster0.duu8e7a.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0'
+beanie_client = AsyncIOMotorClient(uri)
+init_beanie(database=beanie_client.db_name, document_models=[Convo])
 
 
 @app.get("/")
@@ -26,7 +38,7 @@ def read_root():
 
 @app.get("/conversations")
 def Creates_a_new_conversation_with_a_LLM_model(convo: Convo | None = None):
-    response = client.chat.completions.create(
+    response = openAI_client.chat.completions.create(
         model=MODEL,
         messages=[
             {"role": "system", "content": "You are a helpful assistant."},
@@ -37,8 +49,3 @@ def Creates_a_new_conversation_with_a_LLM_model(convo: Convo | None = None):
         temperature=0,
     )
     return (response.choices[0].message.content)
-    return {"name": "string", "params": {
-    "additionalProp1": {},
-    },
-    "additionalProp1": {}
-    }
