@@ -66,11 +66,31 @@ def read_root():
     return {"Hello": "World"}
 
 
-@app.post("/conversations")
-def new_conversation(convo: Conversation | None = None):
+@app.post("/conversations", response_model=Conversation)
+def create_conversation(conversation: ConversationPOST):
     response = openAI_client.chat.completions.create(
         model=MODEL,
         messages=[],
         temperature=0,
     )
     return (response.choices[0].message.content)
+
+@app.get("/conversations", response_model=List[Conversation])
+def get_conversations():
+    return []
+
+@app.put("/conversations/{id}")
+def update_conversation(id: str, conversation: ConversationPUT):
+    pass
+
+@app.get("/conversations/{id}", response_model=ConversationFull)
+def get_conversation(id: str):
+    return ConversationFull(id=id, name="Dummy Conversation", params={}, tokens=100, messages=[])
+
+@app.delete("/conversations/{id}")
+def delete_conversation(id: str):
+    pass
+
+@app.post("/queries", response_model=Prompt)
+def create_prompt(prompt: Prompt):
+    return prompt
