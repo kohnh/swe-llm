@@ -44,16 +44,18 @@ class ConversationPUT(BaseModel):
     name: str = Field(max_length=200)
     params: Optional[dict]
 
+
+# OpenAI
 load_dotenv()
 openAI_client = OpenAI( api_key=os.environ.get("OPENAI_API_KEY"))
 MODEL = "gpt-3.5-turbo"
 
 
+# FastAPI
 app = FastAPI()
 
 
-
-
+# MongoDB
 username = quote_plus(os.environ.get("USERNAME"))
 password = quote_plus(os.environ.get("PASSWORD"))
 uri = 'mongodb+srv://' + username + ':' + password + '@cluster0.duu8e7a.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0'
@@ -61,6 +63,7 @@ beanie_client = AsyncIOMotorClient(uri)
 init_beanie(database=beanie_client.db_name, document_models=[Conversation])
 
 
+# Routes
 @app.get("/")
 def read_root():
     return {"Hello": "World"}
@@ -68,12 +71,14 @@ def read_root():
 
 @app.post("/conversations", response_model=Conversation)
 def create_conversation(conversation: ConversationPOST):
-    response = openAI_client.chat.completions.create(
-        model=MODEL,
-        messages=[],
-        temperature=0,
-    )
-    return (response.choices[0].message.content)
+    if conversation.params:
+        response = openAI_client.chat.completions.create(
+            model=MODEL,
+            messages=conversation.params["messages"],
+            temperature=0,
+        )
+        return (response.choices[0].message.content)
+    return Conversation(id="123", name=conversation.name, params=conversation.params, tokens=100)
 
 @app.get("/conversations", response_model=List[Conversation])
 def get_conversations():
@@ -93,4 +98,9 @@ def delete_conversation(id: str):
 
 @app.post("/queries", response_model=Prompt)
 def create_prompt(prompt: Prompt):
-    return prompt
+    response = openAI_client.chat.completions.create(
+        model=MODEL,
+        messages=[{"role": prompt.role, "content": prompt.content}],
+        temperature=0,
+    )
+    return (response.choices[0].message.content)
