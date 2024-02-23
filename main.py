@@ -1,6 +1,6 @@
 from typing import Union, List, Optional
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from openai import OpenAI
@@ -58,10 +58,13 @@ app = FastAPI()
 # MongoDB
 username = quote_plus(os.environ.get("USERNAME"))
 password = quote_plus(os.environ.get("PASSWORD"))
+#change the uri to your own
 uri = 'mongodb+srv://' + username + ':' + password + '@cluster0.duu8e7a.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0'
 beanie_client = AsyncIOMotorClient(uri)
 init_beanie(database=beanie_client.db_name, document_models=[Conversation])
-
+async def connect_to_mongodb():
+    client = AsyncIOMotorClient(uri)
+    await init_beanie(database="conversations", client=client)
 
 # Routes
 @app.get("/")
@@ -70,31 +73,40 @@ def read_root():
 
 
 @app.post("/conversations", response_model=Conversation)
-def create_conversation(conversation: ConversationPOST):
-    if conversation.params:
-        response = openAI_client.chat.completions.create(
-            model=MODEL,
-            messages=conversation.params["messages"],
-            temperature=0,
-        )
-        return (response.choices[0].message.content)
-    return Conversation(id="123", name=conversation.name, params=conversation.params, tokens=100)
+async def create_conversation(conversation: ConversationPOST):
+    conversation = Conversation(**conversation.dict())
+    await conversation.insert()
+    return conversation
 
 @app.get("/conversations", response_model=List[Conversation])
-def get_conversations():
-    return []
+async def get_conversations():
+    conversations = await Conversation.all()
+    return conversations
 
 @app.put("/conversations/{id}")
-def update_conversation(id: str, conversation: ConversationPUT):
-    pass
+async def update_conversation(id: str, conversation: ConversationPUT):
+    conversation = await Conversation.get(id)
+    if conversation:
+        conversation.name = conversation.name
+        conversation.params = conversation.params
+        await conversation.save()
+        return conversation
+    raise HTTPException(status_code=404, detail="Conversation not found")
 
 @app.get("/conversations/{id}", response_model=ConversationFull)
-def get_conversation(id: str):
-    return ConversationFull(id=id, name="Dummy Conversation", params={}, tokens=100, messages=[])
+async def get_conversation(id: str):
+    conversation = await Conversation.get(id)
+    if conversation:
+        return conversation
+    raise HTTPException(status_code=404, detail="Conversation not found")
 
 @app.delete("/conversations/{id}")
-def delete_conversation(id: str):
-    pass
+async def delete_conversation(id: str):
+    conversation = await Conversation.get(id)
+    if conversation:
+        await conversation.delete()
+        return {"message": "Conversation deleted successfully"}
+    raise HTTPException(status_code=404, detail="Conversation not found")
 
 @app.post("/queries", response_model=Prompt)
 def create_prompt(prompt: Prompt):
@@ -104,3 +116,9 @@ def create_prompt(prompt: Prompt):
         temperature=0,
     )
     return (response.choices[0].message.content)
+
+
+# Connect to MongoDB when the application starts
+@app.on_event("startup")
+async def startup_event():
+    await connect_to_mongodb()
